@@ -1,0 +1,20 @@
+# Serviço systemd da API de Produtos.
+# O deploy.sh troca __APP_DIR__ e __APP_USER__ pelos valores reais
+# e copia este arquivo para /etc/systemd/system/api-produtos.service
+
+[Unit]
+Description=API de Produtos (FastAPI + SQLite)
+After=network.target
+
+[Service]
+User=__APP_USER__
+WorkingDirectory=__APP_DIR__
+Environment=DB_PATH=__APP_DIR__/data/produtos.db
+# A API escuta só em 127.0.0.1 (não fica exposta direto na internet).
+# Quem recebe o tráfego externo é o Nginx, na porta 80.
+ExecStart=__APP_DIR__/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

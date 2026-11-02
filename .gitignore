@@ -1,0 +1,21 @@
+# Banco de dados local (cada ambiente cria o seu)
+data/
+*.db
+*.sqlite3
+
+# Ambiente virtual Python
+venv/
+.venv/
+
+# Cache do Python
+__pycache__/
+*.pyc
+
+# Editores e sistema
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Variáveis de ambiente / segredos
+.env

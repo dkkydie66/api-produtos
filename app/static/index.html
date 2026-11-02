@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Estoque — Painel da API de Produtos</title>
+  <meta name="description" content="Painel de estoque que consome a API REST de produtos (FastAPI + SQLite).">
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/styles.css">
+  <script>
+    // Aplica o tema salvo antes de desenhar a página (evita "piscar")
+    try {
+      const t = localStorage.getItem("tema");
+      if (t === "claro" || t === "escuro") document.documentElement.dataset.theme = t === "escuro" ? "dark" : "light";
+    } catch (e) {}
+  </script>
+</head>
+<body>
+  <!-- Ícones (usados com <svg><use href="#i-..."/></svg>) -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+      <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></symbol>
+      <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 4.5v4.8h-4.8"/></symbol>
+      <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4L6 18M18 6l1.4-1.4"/></symbol>
+      <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.6A8.2 8.2 0 0 1 9.4 4a8.2 8.2 0 1 0 10.6 10.6z"/></symbol>
+      <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></symbol>
+      <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9.5 7V4.5h5V7M6.5 7l1 12.5h9l1-12.5M10 11v5M14 11v5"/></symbol>
+      <symbol id="i-external" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-8.5 8.5M18 14v6H4V6h6"/></symbol>
+      <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3.5L21.5 20h-19L12 3.5z"/><path d="M12 10v4.5M12 17.2v.3"/></symbol>
+      <symbol id="i-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M8.3 12.2l2.6 2.6 4.9-5.4"/></symbol>
+      <symbol id="i-x-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M9.2 9.2l5.6 5.6M14.8 9.2l-5.6 5.6"/></symbol>
+      <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+      <symbol id="i-table" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14" rx="1.5"/><path d="M3.5 10h17M9.5 10v9"/></symbol>
+      <symbol id="i-chart" viewBox="0 0 24 24"><path d="M5 19.5V11M12 19.5V5M19 19.5v-6.5M3 19.5h18"/></symbol>
+      <symbol id="i-box" viewBox="0 0 24 24"><path d="M3.5 7.5L12 3.5l8.5 4v9L12 20.5l-8.5-4v-9z"/><path d="M3.5 7.5L12 11.5l8.5-4M12 11.5v9"/></symbol>
+      <symbol id="i-sort" viewBox="0 0 24 24"><path d="M8 10l4-4 4 4M8 14l4 4 4-4"/></symbol>
+    </defs>
+  </svg>
+
+  <a class="pular" href="#conteudo">Pular para o conteúdo</a>
+
+  <header class="topo">
+    <div class="marca">
+      <img src="/static/favicon.svg" alt="" width="32" height="32">
+      <div>
+        <h1>Estoque</h1>
+        <p>Painel da API de Produtos</p>
+      </div>
+    </div>
+
+    <div class="topo-acoes">
+      <span class="status-api" id="statusApi" role="status" aria-live="polite">
+        <span class="status-ponto"></span>
+        <span class="status-texto">Conectando à API</span>
+      </span>
+      <a class="botao fantasma" href="/docs" target="_blank" rel="noopener">
+        <svg class="icone"><use href="#i-external"/></svg>
+        Documentação da API
+      </a>
+      <button class="botao icone-so fantasma" id="botaoTema" type="button" aria-label="Alternar tema claro/escuro" title="Alternar tema">
+        <svg class="icone tema-escuro"><use href="#i-moon"/></svg>
+        <svg class="icone tema-claro"><use href="#i-sun"/></svg>
+      </button>
+      <button class="botao primario" id="botaoNovo" type="button">
+        <svg class="icone"><use href="#i-plus"/></svg>
+        Novo produto
+      </button>
+    </div>
+  </header>
+
+  <main id="conteudo">
+    <!-- Filtros: valem para todos os indicadores, gráficos e a tabela -->
+    <section class="filtros" aria-label="Filtros">
+      <label class="campo-filtro">
+        <span class="rotulo">Categoria</span>
+        <select id="filtroCategoria">
+          <option value="">Todas as categorias</option>
+        </select>
+      </label>
+      <label class="campo-filtro busca">
+        <span class="rotulo">Buscar</span>
+        <span class="busca-caixa">
+          <svg class="icone"><use href="#i-search"/></svg>
+          <input id="filtroBusca" type="search" placeholder="Nome ou descrição" autocomplete="off">
+        </span>
+      </label>
+      <p class="contagem" id="contagem" aria-live="polite"></p>
+      <button class="botao fantasma" id="botaoAtualizar" type="button">
+        <svg class="icone"><use href="#i-refresh"/></svg>
+        Atualizar
+      </button>
+    </section>
+
+    <!-- Indicadores -->
+    <section class="indicadores" aria-label="Indicadores">
+      <div class="heroi">
+        <p class="rotulo">Valor total em estoque</p>
+        <p class="heroi-valor" id="kpiValor">R$ 0,00</p>
+        <p class="heroi-nota" id="kpiValorNota">Soma de preço × quantidade de cada produto</p>
+      </div>
+      <dl class="stats">
+        <div class="stat">
+          <dt>Produtos cadastrados</dt>
+          <dd id="kpiProdutos">0</dd>
+          <p class="stat-nota" id="kpiProdutosNota"></p>
+        </div>
+        <div class="stat">
+          <dt>Unidades em estoque</dt>
+          <dd id="kpiUnidades">0</dd>
+          <p class="stat-nota" id="kpiUnidadesNota"></p>
+        </div>
+        <div class="stat">
+          <dt>Estoque baixo</dt>
+          <dd id="kpiBaixo">0</dd>
+          <p class="stat-nota" id="kpiBaixoNota"></p>
+        </div>
+      </dl>
+    </section>
+
+    <!-- Gráficos -->
+    <section class="grade" aria-label="Gráficos">
+      <article class="painel" data-grafico="categorias">
+        <header class="painel-topo">
+          <div>
+            <h2>Valor em estoque por categoria</h2>
+            <p>Clique numa barra para filtrar o painel por essa categoria</p>
+          </div>
+          <button class="botao pequeno fantasma alternar-tabela" type="button" aria-pressed="false">
+            <svg class="icone"><use href="#i-table"/></svg><span>Ver tabela</span>
+          </button>
+        </header>
+        <div class="grafico-area"><canvas id="graficoCategorias" role="img" aria-label="Gráfico de barras: valor em estoque por categoria"></canvas></div>
+        <div class="tabela-grafico" hidden></div>
+        <div class="vazio-grafico" hidden></div>
+      </article>
+
+      <article class="painel" data-grafico="evolucao">
+        <header class="painel-topo">
+          <div>
+            <h2>Produtos cadastrados nos últimos 30 dias</h2>
+            <p>Total acumulado no fim de cada dia</p>
+          </div>
+          <button class="botao pequeno fantasma alternar-tabela" type="button" aria-pressed="false">
+            <svg class="icone"><use href="#i-table"/></svg><span>Ver tabela</span>
+          </button>
+        </header>
+        <div class="grafico-area"><canvas id="graficoEvolucao" role="img" aria-label="Gráfico de linha: total de produtos cadastrados por dia"></canvas></div>
+        <div class="tabela-grafico" hidden></div>
+        <div class="vazio-grafico" hidden></div>
+      </article>
+
+      <article class="painel" data-grafico="precos">
+        <header class="painel-topo">
+          <div>
+            <h2>Produtos por faixa de preço</h2>
+            <p>Quantidade de produtos em cada faixa</p>
+          </div>
+          <button class="botao pequeno fantasma alternar-tabela" type="button" aria-pressed="false">
+            <svg class="icone"><use href="#i-table"/></svg><span>Ver tabela</span>
+          </button>
+        </header>
+        <div class="grafico-area"><canvas id="graficoPrecos" role="img" aria-label="Gráfico de colunas: produtos por faixa de preço"></canvas></div>
+        <div class="tabela-grafico" hidden></div>
+        <div class="vazio-grafico" hidden></div>
+      </article>
+
+      <!-- Console de atividade: mostra cada requisição que o painel faz à API -->
+      <article class="painel console" aria-labelledby="tituloConsole">
+        <header class="painel-topo">
+          <div>
+            <h2 id="tituloConsole">Atividade da API</h2>
+            <p>Cada requisição que este painel faz à API REST, em tempo real</p>
+          </div>
+        </header>
+        <ol class="console-lista" id="consoleLista" aria-live="polite"></ol>
+        <p class="console-vazio" id="consoleVazio">Nenhuma requisição ainda.</p>
+      </article>
+    </section>
+
+    <!-- Tabela de produtos -->
+    <section class="painel tabela-painel" aria-labelledby="tituloTabela">
+      <header class="painel-topo">
+        <div>
+          <h2 id="tituloTabela">Produtos</h2>
+          <p>Clique no título de uma coluna para ordenar</p>
+        </div>
+      </header>
+      <div class="tabela-rolagem">
+        <table class="tabela" id="tabelaProdutos">
+          <thead>
+            <tr>
+              <th scope="col"><button type="button" data-ordem="id">ID<svg class="icone"><use href="#i-sort"/></svg></button></th>
+              <th scope="col"><button type="button" data-ordem="nome">Produto<svg class="icone"><use href="#i-sort"/></svg></button></th>
+              <th scope="col"><button type="button" data-ordem="categoria">Categoria<svg class="icone"><use href="#i-sort"/></svg></button></th>
+              <th scope="col" class="num"><button type="button" data-ordem="preco">Preço<svg class="icone"><use href="#i-sort"/></svg></button></th>
+              <th scope="col" class="num"><button type="button" data-ordem="quantidade">Estoque<svg class="icone"><use href="#i-sort"/></svg></button></th>
+              <th scope="col" class="num"><button type="button" data-ordem="valor">Valor em estoque<svg class="icone"><use href="#i-sort"/></svg></button></th>
+              <th scope="col"><button type="button" data-ordem="criado_em">Cadastrado em<svg class="icone"><use href="#i-sort"/></svg></button></th>
+              <th scope="col" class="acoes-col"><span class="sr">Ações</span></th>
+            </tr>
+          </thead>
+          <tbody id="corpoTabela"></tbody>
+        </table>
+      </div>
+      <div class="vazio" id="vazioTabela" hidden>
+        <svg class="icone grande"><use href="#i-box"/></svg>
+        <h3 id="vazioTitulo">Nenhum produto cadastrado ainda</h3>
+        <p id="vazioTexto">Cadastre o primeiro produto ou carregue alguns exemplos para ver os gráficos funcionando.</p>
+        <div class="vazio-acoes" id="vazioAcoes">
+          <button class="botao primario" type="button" data-acao="novo">
+            <svg class="icone"><use href="#i-plus"/></svg>Novo produto
+          </button>
+          <button class="botao" type="button" data-acao="exemplos">Carregar dados de exemplo</button>
+        </div>
+      </div>
+    </section>
+
+    <footer class="rodape">
+      <p>API REST em Python (FastAPI) com banco SQLite, hospedada em uma máquina virtual na nuvem.</p>
+      <p><a href="/docs" target="_blank" rel="noopener">Documentação interativa</a> <span aria-hidden="true">|</span> <a href="/api" target="_blank" rel="noopener">Informações da API</a></p>
+    </footer>
+  </main>
+
+  <!-- Formulário de produto (criar / editar) -->
+  <dialog class="dialogo" id="dialogoProduto" aria-labelledby="dialogoTitulo">
+    <form id="formProduto" novalidate>
+      <header class="dialogo-topo">
+        <h2 id="dialogoTitulo">Novo produto</h2>
+        <button class="botao icone-so fantasma" type="button" data-fechar aria-label="Fechar">
+          <svg class="icone"><use href="#i-close"/></svg>
+        </button>
+      </header>
+
+      <div class="dialogo-corpo">
+        <div class="erro-geral" id="erroGeral" role="alert" hidden></div>
+
+        <label class="campo">
+          <span class="rotulo">Nome <span class="obrig">obrigatório</span></span>
+          <input name="nome" maxlength="100" required autocomplete="off">
+          <span class="erro-campo" data-erro="nome"></span>
+        </label>
+
+        <label class="campo">
+          <span class="rotulo">Categoria</span>
+          <input name="categoria" list="listaCategorias" maxlength="50" placeholder="Ex.: Periféricos" autocomplete="off">
+          <datalist id="listaCategorias"></datalist>
+          <span class="erro-campo" data-erro="categoria"></span>
+        </label>
+
+        <div class="campo-linha">
+          <label class="campo">
+            <span class="rotulo">Preço (R$)</span>
+            <input name="preco" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0,00">
+            <span class="erro-campo" data-erro="preco"></span>
+          </label>
+          <label class="campo">
+            <span class="rotulo">Quantidade em estoque</span>
+            <input name="quantidade" type="number" min="0" step="1" inputmode="numeric" placeholder="0">
+            <span class="erro-campo" data-erro="quantidade"></span>
+          </label>
+        </div>
+
+        <label class="campo">
+          <span class="rotulo">Descrição</span>
+          <textarea name="descricao" rows="3" maxlength="500" placeholder="Opcional"></textarea>
+          <span class="erro-campo" data-erro="descricao"></span>
+        </label>
+
+        <p class="requisicao-info" id="requisicaoInfo"></p>
+      </div>
+
+      <footer class="dialogo-rodape">
+        <button class="botao fantasma" type="button" data-fechar>Cancelar</button>
+        <button class="botao primario" type="submit" id="botaoSalvar">Criar produto</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <!-- Confirmação de exclusão -->
+  <dialog class="dialogo pequeno" id="dialogoExcluir" aria-labelledby="excluirTitulo">
+    <div class="dialogo-corpo">
+      <h2 id="excluirTitulo">Excluir produto?</h2>
+      <p id="excluirTexto"></p>
+      <p class="requisicao-info" id="excluirRequisicao"></p>
+    </div>
+    <footer class="dialogo-rodape">
+      <button class="botao fantasma" type="button" data-fechar>Cancelar</button>
+      <button class="botao perigo" type="button" id="botaoConfirmarExcluir">
+        <svg class="icone"><use href="#i-trash"/></svg>Excluir produto
+      </button>
+    </footer>
+  </dialog>
+
+  <div class="avisos" id="avisos" aria-live="polite"></div>
+
+  <script src="/static/vendor/chart.umd.min.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>
